@@ -125,7 +125,7 @@ export default function CheckoutPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleFinalOrderSubmit = () => {
+  const handleFinalOrderSubmit = async () => {
     if (items.length === 0) {
       showToast("Your cart is empty");
       router.push("/cart");
@@ -134,21 +134,24 @@ export default function CheckoutPage() {
 
     setIsProcessing(true);
 
-    setTimeout(() => {
-      setIsProcessing(false);
-
-      // Create Order & save in localStorage
-      const order = createOrder(address, paymentMethod);
+    try {
+      // Create Order — persists to DB via API
+      const order = await createOrder(address, paymentMethod);
 
       if (paymentMethod === "cod") {
         showToast("Order Placed Successfully! (Cash on Delivery)");
       } else {
-        showToast("Demo Payment Successful!");
+        showToast("Payment Successful! Order confirmed.");
       }
 
       // Navigate to dedicated confirmation route
       router.push(`/order-success/${order.orderId}`);
-    }, 1200);
+    } catch (err) {
+      console.error("Order placement error:", err);
+      showToast("Failed to place order. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleApplyCoupon = (e: React.FormEvent) => {

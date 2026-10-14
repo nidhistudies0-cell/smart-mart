@@ -22,7 +22,8 @@ export async function fetchApi<T>(
     }
   }
 
-  const url = `${process.env.NEXT_PUBLIC_API_URL}${endpoint}`;
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const url = `${baseUrl}${endpoint}`;
   
   const headers = new Headers(options.headers);
   if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {

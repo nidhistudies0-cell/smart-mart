@@ -57,9 +57,7 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-stone-900 selection:bg-[#D3E2D3] selection:text-[#1A4731]">
       
       {/* A. Top Navigation */}
-      <Navbar
-        onSearch={handleSearch}
-      />
+      <Navbar />
 
       {/* Main Content Sections */}
       <main className="flex-1">

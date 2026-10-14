@@ -22,6 +22,18 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [salesRange, setSalesRange] = useState("Last 7 Days");
+  const [todayFormatted, setTodayFormatted] = useState("15 Oct 2026");
+
+  useEffect(() => {
+    const now = new Date();
+    setTodayFormatted(
+      now.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    );
+  }, []);
 
   useEffect(() => {
     fetchApi<any>("/api/reports/dashboard")
@@ -35,65 +47,33 @@ export default function AdminDashboardPage() {
       });
   }, []);
 
-  // Fallback defaults matching design when DB is freshly seeded
-  const totalProducts = data?.totalProducts ?? 250;
-  const totalOrders = data?.totalOrders ?? 128;
-  const totalCustomers = data?.totalCustomers ?? 98;
-  const totalRevenue = data?.totalRevenue ? Number(data.totalRevenue).toLocaleString("en-IN") : "24,560";
+  // Real DB stats
+  const totalProducts = data?.totalProducts ?? 0;
+  const totalOrders = data?.totalOrders ?? 0;
+  const totalCustomers = data?.totalCustomers ?? 0;
+  const totalRevenue = data?.totalRevenue ? Number(data.totalRevenue).toLocaleString("en-IN") : "0";
 
-  // Low stock products (from API or design fallbacks)
-  const lowStockProducts = data?.lowStockItems?.length
+  // Low stock products from real database
+  const lowStockProducts: any[] = data?.lowStockItems && Array.isArray(data.lowStockItems)
     ? data.lowStockItems.slice(0, 5)
-    : [
-        {
-          name: "Daawat Basmati Rice 5kg",
-          stock: 5,
-          reorder: 20,
-          image: "https://www.bbassets.com/media/uploads/p/l/255843_21-daawat-super-basmati-5-kg.jpg"
-        },
-        {
-          name: "Amul Taaza Milk 1L",
-          stock: 8,
-          reorder: 30,
-          image: "https://images-na.ssl-images-amazon.com/images/P/B018E0HQPE.01._SCLZZZZZZZ_SX500_.jpg"
-        },
-        {
-          name: "Lays Classic Salted 52g",
-          stock: 12,
-          reorder: 30,
-          image: "https://m.media-amazon.com/images/I/71HqDWJt23L._SL1500_.jpg"
-        },
-        {
-          name: "Fresh Banana 1kg",
-          stock: 15,
-          reorder: 50,
-          image: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600&q=80"
-        },
-        {
-          name: "Aashirvaad Atta 5kg",
-          stock: 18,
-          reorder: 40,
-          image: "https://cdn.grofers.com/da/cms-assets/cms/product/a79ec60d-7acb-4cbf-bee2-12c135542d7b.jpg"
-        },
-      ];
+    : [];
 
-  // Recent orders (from API or design mock data)
+  // Recent orders (from DB API)
   const recentOrders = data?.recentOrders?.length
     ? data.recentOrders.map((o: any) => ({
         id: `#${o.orderId}`,
         customer: o.customerName || "Customer",
-        items: 4,
+        items: 1,
         amount: `₹${Number(o.totalAmount).toLocaleString("en-IN")}`,
         status: o.orderStatus,
-        date: new Date(o.orderDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+        date: new Date(o.orderDate).toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       }))
-    : [
-        { id: "#1087", customer: "Riya Sharma", items: 4, amount: "₹895", status: "Delivered", date: "8 Oct, 04:12 PM" },
-        { id: "#1086", customer: "Aarav Mehta", items: 5, amount: "₹1,240", status: "Out for Delivery", date: "8 Oct, 11:30 AM" },
-        { id: "#1085", customer: "Sneha Verma", items: 3, amount: "₹560", status: "Processing", date: "7 Oct, 07:45 PM" },
-        { id: "#1084", customer: "Karan Gupta", items: 6, amount: "₹1,320", status: "Delivered", date: "7 Oct, 12:10 PM" },
-        { id: "#1083", customer: "Ishita Nair", items: 2, amount: "₹745", status: "Cancelled", date: "6 Oct, 09:18 PM" },
-      ];
+    : [];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -112,21 +92,56 @@ export default function AdminDashboardPage() {
     }
   };
 
-  // SVG Chart points for Sales Overview curve matching Screenshot 1
-  // Points: (0, 160), (80, 140), (160, 95), (240, 120), (320, 80), (400, 35), (460, 85), (540, 50)
-  const chartPoints = [
-    { x: 30, y: 155, label: "2 Oct", val: "5K" },
-    { x: 105, y: 140, label: "3 Oct", val: "6.5K" },
-    { x: 180, y: 100, label: "4 Oct", val: "10.2K" },
-    { x: 255, y: 122, label: "5 Oct", val: "8.1K" },
-    { x: 330, y: 82, label: "6 Oct", val: "12.3K" },
-    { x: 405, y: 40, label: "7 Oct", val: "16.8K" },
-    { x: 480, y: 88, label: "8 Oct", val: "12K" },
-    { x: 555, y: 55, label: "9 Oct", val: "15.4K" },
+  // Dynamic sales trend calculation for last 7 days
+  const salesTrendList = data?.salesTrend ?? [];
+  const salesByDate: Record<string, number> = {};
+  salesTrendList.forEach((st: any) => {
+    salesByDate[st.date] = Number(st.revenue || 0);
+  });
+
+  const last7Days: { dateStr: string; label: string; amount: number }[] = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const key = `${yyyy}-${mm}-${dd}`;
+    const label = d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    last7Days.push({
+      dateStr: key,
+      label,
+      amount: salesByDate[key] || 0,
+    });
+  }
+
+  const maxSale = Math.max(...last7Days.map((d) => d.amount), 500);
+  const yTicks = [
+    { label: `${Math.round(maxSale)}`, y: 30 },
+    { label: `${Math.round(maxSale * 0.75)}`, y: 85 },
+    { label: `${Math.round(maxSale * 0.5)}`, y: 140 },
+    { label: `${Math.round(maxSale * 0.25)}`, y: 195 },
   ];
 
-  const svgPathD = "M 30,155 Q 70,148 105,140 T 180,100 T 255,122 T 330,82 T 405,40 T 480,88 T 555,55";
-  const areaPathD = `${svgPathD} L 555,200 L 30,200 Z`;
+  const chartPoints = last7Days.map((d, index) => {
+    const x = 50 + index * 82;
+    const ratio = maxSale > 0 ? d.amount / maxSale : 0;
+    const y = 200 - ratio * 165;
+    return { x, y, label: d.label, amount: d.amount };
+  });
+
+  const svgPathD = chartPoints.reduce((acc, pt, i, arr) => {
+    if (i === 0) return `M ${pt.x},${pt.y}`;
+    const prev = arr[i - 1];
+    const cp1x = prev.x + (pt.x - prev.x) / 2;
+    const cp1y = prev.y;
+    const cp2x = prev.x + (pt.x - prev.x) / 2;
+    const cp2y = pt.y;
+    return `${acc} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${pt.x},${pt.y}`;
+  }, "");
+
+  const areaPathD = `${svgPathD} L ${chartPoints[chartPoints.length - 1]?.x || 542},200 L ${chartPoints[0]?.x || 50},200 Z`;
 
   return (
     <div className="space-y-7">
@@ -146,7 +161,9 @@ export default function AdminDashboardPage() {
           <Calendar className="w-4 h-4 text-[#4A5D50]" />
           <div className="flex flex-col text-left">
             <span className="text-[10px] uppercase font-bold text-[#7D8F82] tracking-wider leading-none">Today</span>
-            <span className="text-xs font-semibold text-[#14231B] leading-tight">8 Oct 2026</span>
+            <span className="text-xs font-semibold text-[#14231B] leading-tight">
+              {todayFormatted}
+            </span>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-[#7D8F82] ml-1" />
         </div>
@@ -245,17 +262,15 @@ export default function AdminDashboardPage() {
                 </linearGradient>
               </defs>
 
-              {/* Horizontal Grid lines */}
-              <line x1="30" y1="30" x2="570" y2="30" stroke="#F0EBE1" strokeWidth="1" />
-              <line x1="30" y1="85" x2="570" y2="85" stroke="#F0EBE1" strokeWidth="1" />
-              <line x1="30" y1="140" x2="570" y2="140" stroke="#F0EBE1" strokeWidth="1" />
-              <line x1="30" y1="195" x2="570" y2="195" stroke="#F0EBE1" strokeWidth="1" />
-
-              {/* Y Axis text */}
-              <text x="2" y="34" className="text-[10px] fill-[#8B9B90]">20K</text>
-              <text x="2" y="89" className="text-[10px] fill-[#8B9B90]">15K</text>
-              <text x="2" y="144" className="text-[10px] fill-[#8B9B90]">10K</text>
-              <text x="8" y="199" className="text-[10px] fill-[#8B9B90]">5K</text>
+              {/* Horizontal Grid lines & Dynamic Y labels */}
+              {yTicks.map((tick, i) => (
+                <React.Fragment key={i}>
+                  <line x1="30" y1={tick.y} x2="570" y2={tick.y} stroke="#F0EBE1" strokeWidth="1" />
+                  <text x="2" y={tick.y + 4} className="text-[10px] fill-[#8B9B90]">
+                    {tick.label}
+                  </text>
+                </React.Fragment>
+              ))}
 
               {/* Area fill */}
               <path d={areaPathD} fill="url(#chartGradient)" />
@@ -306,32 +321,40 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F6F2EC]">
-                {lowStockProducts.map((p: any, i: number) => {
-                  const name = p.productName || p.name;
-                  const currentStock = p.currentStock ?? p.stock;
-                  const reorderLevel = p.reorderLevel ?? p.reorder;
-                  const img = p.imageUrl || p.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80";
+                {lowStockProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-6 text-center text-[#7D8F82]">
+                      All products are adequately stocked.
+                    </td>
+                  </tr>
+                ) : (
+                  lowStockProducts.map((p: any, i: number) => {
+                    const name = p.productName || p.name;
+                    const currentStock = p.currentStock ?? p.stock;
+                    const reorderLevel = p.reorderLevel ?? p.reorder;
+                    const img = p.imageUrl || p.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80";
 
-                  return (
-                    <tr key={i} className="hover:bg-[#FAF7F2]/60 transition-colors">
-                      <td className="py-2.5 flex items-center gap-2.5">
-                        <img
-                          src={img}
-                          alt={name}
-                          className="w-7 h-7 rounded-md object-contain bg-stone-50 border border-stone-200"
-                        />
-                        <span className="font-semibold text-[#14231B] truncate max-w-[140px]">{name}</span>
-                      </td>
-                      <td className="py-2.5 text-center font-bold text-[#D94F3D]">{currentStock}</td>
-                      <td className="py-2.5 text-center text-[#5A6C60]">{reorderLevel}</td>
-                      <td className="py-2.5 text-right">
-                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-[#FCEAEA] text-[#D94F3D]">
-                          Low Stock
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
+                    return (
+                      <tr key={i} className="hover:bg-[#FAF7F2]/60 transition-colors">
+                        <td className="py-2.5 flex items-center gap-2.5">
+                          <img
+                            src={img}
+                            alt={name}
+                            className="w-7 h-7 rounded-md object-contain bg-stone-50 border border-stone-200"
+                          />
+                          <span className="font-semibold text-[#14231B] truncate max-w-[140px]">{name}</span>
+                        </td>
+                        <td className="py-2.5 text-center font-bold text-[#D94F3D]">{currentStock}</td>
+                        <td className="py-2.5 text-center text-[#5A6C60]">{reorderLevel}</td>
+                        <td className="py-2.5 text-right">
+                          <span className="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-[#FCEAEA] text-[#D94F3D]">
+                            Low Stock
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -365,16 +388,24 @@ export default function AdminDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F6F2EC]">
-                {recentOrders.map((order: any, idx: number) => (
-                  <tr key={idx} className="hover:bg-[#FAF7F2]/60 transition-colors">
-                    <td className="py-3 font-bold text-[#14231B]">{order.id}</td>
-                    <td className="py-3 font-medium text-[#14231B]">{order.customer}</td>
-                    <td className="py-3 text-center text-[#5A6C60]">{order.items}</td>
-                    <td className="py-3 font-bold text-[#14231B]">{order.amount}</td>
-                    <td className="py-3 text-center">{getStatusBadge(order.status)}</td>
-                    <td className="py-3 text-right text-[#7D8F82]">{order.date}</td>
+                {recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-[#7D8F82]">
+                      No orders placed yet.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  recentOrders.map((order: any, idx: number) => (
+                    <tr key={idx} className="hover:bg-[#FAF7F2]/60 transition-colors">
+                      <td className="py-3 font-bold text-[#14231B]">{order.id}</td>
+                      <td className="py-3 font-medium text-[#14231B]">{order.customer}</td>
+                      <td className="py-3 text-center text-[#5A6C60]">{order.items}</td>
+                      <td className="py-3 font-bold text-[#14231B]">{order.amount}</td>
+                      <td className="py-3 text-center">{getStatusBadge(order.status)}</td>
+                      <td className="py-3 text-right text-[#7D8F82]">{order.date}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

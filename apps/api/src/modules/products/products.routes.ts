@@ -30,6 +30,7 @@ router.get("/", async (req, res, next) => {
         createdAt: product.createdAt,
         categoryName: category.categoryName,
         supplierName: supplier.supplierName,
+        inventoryId: inventory.inventoryId,
         currentStock: inventory.currentStock,
         reorderLevel: inventory.reorderLevel,
       })
@@ -113,7 +114,7 @@ router.get("/:id", async (req, res, next) => {
 router.patch("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const { productName, description, price, expiryDate, imageUrl, categoryId, supplierId, isActive } = req.body as Record<string, any>;
+    const { productName, description, price, expiryDate, imageUrl, categoryId, supplierId, isActive, currentStock, reorderLevel } = req.body as Record<string, any>;
     const updates: Record<string, any> = {};
     if (productName?.trim()) updates.productName = productName.trim();
     if (description !== undefined) updates.description = description?.trim() || null;
@@ -123,9 +124,39 @@ router.patch("/:id", async (req, res, next) => {
     if (categoryId !== undefined) updates.categoryId = Number(categoryId);
     if (supplierId !== undefined) updates.supplierId = Number(supplierId);
     if (isActive !== undefined) updates.isActive = Boolean(isActive);
-    const [row] = await db.update(product).set(updates).where(eq(product.productId, id)).returning();
-    if (!row) return next(notFound("Product not found"));
-    res.json(row);
+
+    const result = await db.transaction(async (tx) => {
+      let row = undefined;
+      if (Object.keys(updates).length > 0) {
+        const [updatedProduct] = await tx.update(product).set(updates).where(eq(product.productId, id)).returning();
+        row = updatedProduct;
+      } else {
+        const [existingProduct] = await tx.select().from(product).where(eq(product.productId, id)).limit(1);
+        row = existingProduct;
+      }
+      if (!row) throw notFound("Product not found");
+
+      if (currentStock !== undefined || reorderLevel !== undefined) {
+        const invUpdates: Record<string, any> = { lastUpdated: new Date() };
+        if (currentStock !== undefined) invUpdates.currentStock = Number(currentStock);
+        if (reorderLevel !== undefined) invUpdates.reorderLevel = Number(reorderLevel);
+
+        const [existingInv] = await tx.select().from(inventory).where(eq(inventory.productId, id)).limit(1);
+        if (existingInv) {
+          await tx.update(inventory).set(invUpdates).where(eq(inventory.productId, id));
+        } else {
+          await tx.insert(inventory).values({
+            productId: id,
+            currentStock: Number(currentStock ?? 0),
+            reorderLevel: Number(reorderLevel ?? 10),
+          });
+        }
+      }
+
+      return row;
+    });
+
+    res.json(result);
   } catch (err) { next(err); }
 });
 

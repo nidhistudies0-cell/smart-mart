@@ -72,17 +72,17 @@ export default function AdminManagementPage() {
     loadAllData();
   }, []);
 
-  // Compute KPI stats
-  const totalProductsCount = products.length || 250;
+  // Compute KPI stats from real DB values
+  const totalProductsCount = products.length;
   const lowStockCount = products.filter(
-    (p) => (p.currentStock ?? 50) <= (p.reorderLevel ?? 20)
-  ).length || 18;
+    (p) => Number(p.currentStock ?? 0) <= Number(p.reorderLevel ?? 10)
+  ).length;
   const totalInventoryValue = products.reduce((acc, p) => {
     const pr = parseFloat(p.price || "0") || 0;
     const st = Number(p.currentStock ?? 0);
     return acc + pr * st;
-  }, 0) || 124560;
-  const totalSuppliersCount = suppliers.length || 12;
+  }, 0);
+  const totalSuppliersCount = suppliers.length;
 
   // Filtered and sorted products
   const filteredProducts = useMemo(() => {
@@ -184,13 +184,17 @@ export default function AdminManagementPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const currentStockNum = Number(formData.currentStock || 0);
+      const reorderLevelNum = Number(formData.reorderLevel || 10);
+
       const payload = {
         productName: formData.productName,
         price: formData.price,
         categoryId: Number(formData.categoryId),
         supplierId: Number(formData.supplierId),
-        initialStock: Number(formData.currentStock || 0),
-        reorderLevel: Number(formData.reorderLevel || 10),
+        initialStock: currentStockNum,
+        currentStock: currentStockNum,
+        reorderLevel: reorderLevelNum,
         expiryDate: formData.expiryDate || null,
         imageUrl: formData.imageUrl || null,
         description: formData.description || null,
@@ -202,14 +206,6 @@ export default function AdminManagementPage() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        // Also update inventory if stock changed
-        await fetchApi(`/api/inventory/${editingId}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            currentStock: Number(formData.currentStock || 0),
-            reorderLevel: Number(formData.reorderLevel || 10),
-          }),
-        }).catch(() => {});
       } else {
         await fetchApi("/api/products", {
           method: "POST",
@@ -405,7 +401,7 @@ export default function AdminManagementPage() {
               </thead>
               <tbody className="divide-y divide-[#F6F2EC]">
                 {filteredProducts.map((p) => {
-                  const isLow = (p.currentStock ?? 50) <= (p.reorderLevel ?? 20);
+                  const isLow = Number(p.currentStock ?? 0) <= Number(p.reorderLevel ?? 10);
                   const isSelected = selectedIds.includes(p.productId);
 
                   return (
@@ -458,10 +454,10 @@ export default function AdminManagementPage() {
                           isLow ? "text-[#D94F3D]" : "text-[#14231B]"
                         }`}
                       >
-                        {p.currentStock ?? 50}
+                        {p.currentStock ?? 0}
                       </td>
                       <td className="py-3 text-center text-[#5A6C60]">
-                        {p.reorderLevel ?? 20}
+                        {p.reorderLevel ?? 10}
                       </td>
                       <td className="py-3 text-center">
                         {isLow ? (

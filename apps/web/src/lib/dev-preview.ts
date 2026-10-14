@@ -297,7 +297,7 @@ export async function getDevPreviewResponse(
   const searchParams = urlObj.searchParams;
 
   // 1. Admin Me Auth verification
-  if (pathname === "/api/auth/admin/me") {
+  if (pathname === "/api/admin/me" || pathname === "/api/auth/admin/me") {
     return {
       adminId: 1,
       name: "SmartMart Preview Admin",
@@ -405,6 +405,43 @@ export async function getDevPreviewResponse(
     return rows;
   }
 
+  // 5b-extra: POST /api/checkout — customer places an order (dev-preview)
+  if (pathname === "/api/checkout" && method === "POST") {
+    const body = options.body ? JSON.parse(options.body as string) : {};
+    const newOrderId = 5000 + sampleOrders.length + 1;
+    const total = (body.items || []).reduce(
+      (acc: number, it: any) => acc + (Number(it.unitPrice) * Number(it.quantity)),
+      0
+    );
+    const newOrder = {
+      orderId: newOrderId,
+      orderDate: new Date().toISOString(),
+      orderStatus: "Pending" as const,
+      totalAmount: total.toFixed(2),
+      shippingAddress: body.shippingAddress || "",
+      customerId: 201,
+      customerName: "Preview Customer",
+      customerEmail: "preview@smartmart.dev",
+      items: (body.items || []).map((it: any, idx: number) => ({
+        orderDetailId: 100 + idx,
+        productId: it.productId,
+        quantity: it.quantity,
+        unitPrice: String(it.unitPrice),
+        productName: sampleProducts.find((p) => p.productId === it.productId)?.productName || "Product",
+      })),
+      payment: {
+        paymentId: 9000 + newOrderId,
+        orderId: newOrderId,
+        paymentMethod: body.paymentMethod || "UPI",
+        paymentStatus: body.paymentMethod === "cod" ? "Pending" : "Completed",
+        paymentDate: new Date().toISOString(),
+        amount: total.toFixed(2),
+      },
+    };
+    sampleOrders.unshift(newOrder as any);
+    return { orderId: newOrderId, orderStatus: "Pending", totalAmount: total.toFixed(2), message: "Order placed successfully" };
+  }
+
   // 5b. Order Details
   if (pathname.startsWith("/api/orders/") && !pathname.endsWith("/status") && method === "GET") {
     const id = Number(pathname.split("/").pop());
@@ -470,9 +507,19 @@ export async function getDevPreviewResponse(
 
   // 8. Reports: Dashboard
   if (pathname === "/api/reports/dashboard") {
+    const deliveredRevenue = sampleOrders
+      .filter((o) => o.orderStatus === "Delivered")
+      .reduce((acc, o) => acc + Number(o.totalAmount), 0);
+
+    // Build ordersByStatus dynamically
+    const statusCounts: Record<string, number> = {};
+    sampleOrders.forEach((o) => {
+      statusCounts[o.orderStatus] = (statusCounts[o.orderStatus] || 0) + 1;
+    });
+
     return {
       totalOrders: sampleOrders.length,
-      totalRevenue: "1280.00",
+      totalRevenue: deliveredRevenue.toFixed(2),
       totalCustomers: SAMPLE_CUSTOMERS.length,
       totalProducts: sampleProducts.filter((p) => p.isActive).length,
       lowStockItems: sampleProducts.filter((p) => p.currentStock <= p.reorderLevel).map((p) => ({
@@ -481,19 +528,14 @@ export async function getDevPreviewResponse(
         currentStock: p.currentStock,
         reorderLevel: p.reorderLevel,
       })),
-      recentOrders: sampleOrders.slice(0, 5).map((o) => ({
+      recentOrders: [...sampleOrders].slice(0, 5).map((o) => ({
         orderId: o.orderId,
         orderDate: o.orderDate,
         orderStatus: o.orderStatus,
         totalAmount: o.totalAmount,
         customerName: o.customerName,
       })),
-      ordersByStatus: [
-        { status: "Delivered", count: 1 },
-        { status: "Shipped", count: 1 },
-        { status: "Confirmed", count: 1 },
-        { status: "Pending", count: 1 },
-      ],
+      ordersByStatus: Object.entries(statusCounts).map(([status, count]) => ({ status, count })),
     };
   }
 

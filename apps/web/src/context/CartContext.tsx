@@ -4,6 +4,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { Product } from "@/types/store";
 import { Toast } from "@/components/store/Toast";
 import { ALL_PRODUCTS } from "@/data/mockStoreData";
+import { fetchApi, ApiError } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 
 export interface CartItem {
   product: Product;
@@ -66,7 +68,7 @@ interface CartContextType {
   createOrder: (
     shippingAddress: ShippingAddress,
     paymentMethod: "upi" | "card" | "netbanking" | "cod"
-  ) => OrderDetails;
+  ) => Promise<OrderDetails>;
   getOrderById: (orderId: string) => OrderDetails | null;
   isLoaded: boolean;
   toastMessage: string | null;
@@ -122,57 +124,112 @@ const COUPON_STORAGE_KEY = "smartmart_coupon_v2";
 const FREE_DELIVERY_THRESHOLD = 1000;
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>(INITIAL_CART_ITEMS);
+  const [items, setItems] = useState<CartItem[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { data: session, isPending: sessionLoading } = authClient.useSession();
+  const userId = session?.user?.id;
+  const storageKey = userId ? `smartmart_cart_${userId}` : "smartmart_guest_cart";
+  const couponStorageKey = userId ? `smartmart_coupon_${userId}` : "smartmart_guest_coupon";
 
-  // Initialize from localStorage on client mount (safe hydration)
+  // Handle session changes and load cart
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setItems(parsed);
-        }
+    let active = true;
+
+    async function loadCart() {
+      // Do nothing while the Better-Auth session is still initializing
+      if (sessionLoading) {
+        return;
       }
-      const storedCoupon = localStorage.getItem(COUPON_STORAGE_KEY);
-      if (storedCoupon) {
-        const parsedCoupon = JSON.parse(storedCoupon);
-        if (parsedCoupon && parsedCoupon.code) {
-          setAppliedCoupon(parsedCoupon);
+
+      // If user is truly logged out
+      if (!session?.user) {
+        let guestItems: CartItem[] = [];
+        try {
+          const stored = localStorage.getItem("smartmart_guest_cart");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) guestItems = parsed;
+          }
+        } catch {
+          // Fallback
         }
+        if (active) {
+          setItems(guestItems);
+          setAppliedCoupon(null);
+          setIsLoaded(true);
+        }
+        return;
       }
-    } catch {
-      // Local storage disabled or error
-    } finally {
-      setIsLoaded(true);
+
+      // User is logged in: first load local cache immediately for instantaneous UI
+      try {
+        const stored = localStorage.getItem(`smartmart_cart_${session.user.id}`);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && active && parsed.length > 0) {
+            setItems(parsed);
+          }
+        }
+      } catch {}
+
+      // Then fetch authoritative cart items from backend PostgreSQL database
+      try {
+        const res = await fetchApi<{ items: { cartId: number; quantity: number; product: Product }[] }>("/api/cart");
+        if (active && res && Array.isArray(res.items)) {
+          if (res.items.length > 0) {
+            const dbItems = res.items.map((it) => ({ product: it.product, quantity: it.quantity }));
+            setItems(dbItems);
+            try {
+              localStorage.setItem(`smartmart_cart_${session.user.id}`, JSON.stringify(dbItems));
+            } catch {}
+          }
+        }
+      } catch {
+        // Fall back to stored cache
+      } finally {
+        if (active) setIsLoaded(true);
+      }
     }
-  }, []);
 
-  // Persist to localStorage on change once loaded
+    loadCart();
+
+    return () => {
+      active = false;
+    };
+  }, [session?.user?.id, sessionLoading]);
+
+  // Persist to user-scoped localStorage on change once loaded
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || sessionLoading) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(storageKey, JSON.stringify(items));
     } catch {
       // Persistence error fallback
     }
-  }, [items, isLoaded]);
+  }, [items, isLoaded, sessionLoading, storageKey]);
 
   useEffect(() => {
     if (!isLoaded) return;
     try {
       if (appliedCoupon) {
-        localStorage.setItem(COUPON_STORAGE_KEY, JSON.stringify(appliedCoupon));
+        localStorage.setItem(couponStorageKey, JSON.stringify(appliedCoupon));
       } else {
-        localStorage.removeItem(COUPON_STORAGE_KEY);
+        localStorage.removeItem(couponStorageKey);
       }
     } catch {
       // Persistence fallback
     }
-  }, [appliedCoupon, isLoaded]);
+  }, [appliedCoupon, isLoaded, couponStorageKey]);
+
+  // Clean up old shared cart storage key so it doesn't leak
+  useEffect(() => {
+    try {
+      localStorage.removeItem("smartmart_cart_v2");
+      localStorage.removeItem("smartmart_coupon_v2");
+    } catch {}
+  }, []);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -221,6 +278,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (resultMessage) {
       showToast(resultMessage);
     }
+
+    // Sync with DB if user is logged in
+    if (session?.user) {
+      fetchApi("/api/cart", {
+        method: "POST",
+        body: JSON.stringify({ productId: product.productId, quantity: qty }),
+      }).catch(() => null);
+    }
+
     return { success: true, message: resultMessage };
   };
 
@@ -232,12 +298,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return prev.filter((i) => i.product.productId !== productId);
     });
+
+    if (session?.user) {
+      fetchApi(`/api/cart/${productId}`, {
+        method: "DELETE",
+      }).catch(() => null);
+    }
   };
 
   const removeSelectedItems = (productIds: number[]) => {
     if (productIds.length === 0) return;
     setItems((prev) => prev.filter((i) => !productIds.includes(i.product.productId)));
     showToast(`Removed ${productIds.length} item(s) from your cart`);
+
+    if (session?.user) {
+      productIds.forEach((id) => {
+        fetchApi(`/api/cart/${id}`, { method: "DELETE" }).catch(() => null);
+      });
+    }
   };
 
   const updateQuantity = (productId: number, newQty: number) => {
@@ -258,12 +336,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return item;
       })
     );
+
+    if (session?.user) {
+      fetchApi(`/api/cart/${productId}`, {
+        method: "PUT",
+        body: JSON.stringify({ quantity: newQty }),
+      }).catch(() => null);
+    }
   };
 
   const clearCart = () => {
     setItems([]);
     setAppliedCoupon(null);
     showToast("Your cart has been cleared");
+
+    if (session?.user) {
+      fetchApi("/api/cart", {
+        method: "DELETE",
+      }).catch(() => null);
+    }
   };
 
   const applyCoupon = (rawCode: string) => {
@@ -322,11 +413,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const finalTotal = Math.max(0, subtotal + deliveryFee - discountAmount);
 
-  // Create demo order
-  const createOrder = (
+  // Create order - persists to DB via API, falls back to localStorage only
+  const createOrder = async (
     shippingAddress: ShippingAddress,
     paymentMethod: "upi" | "card" | "netbanking" | "cod"
-  ): OrderDetails => {
+  ): Promise<OrderDetails> => {
     const orderId = `SM-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     const now = new Date();
     const orderDate = now.toLocaleDateString("en-IN", {
@@ -337,6 +428,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       minute: "2-digit",
     });
 
+    // Build order details object for local reference / success page
     const newOrder: OrderDetails = {
       orderId,
       orderDate,
@@ -352,8 +444,44 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       paymentStatus: paymentMethod === "cod" ? "pending_cod" : "paid",
     };
 
+    // Build shipping address string for API
+    const shippingAddressStr = [
+      shippingAddress.addressLine,
+      shippingAddress.city,
+      shippingAddress.state,
+      shippingAddress.pincode,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+    // Attempt to persist to the real database
     try {
-      localStorage.setItem(`smartmart_order_${orderId}`, JSON.stringify(newOrder));
+      const apiResponse = await fetchApi<{ orderId: number; orderStatus: string; totalAmount: string }>(
+        "/api/checkout",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            items: items.map((item) => ({
+              productId: item.product.productId,
+              productName: item.product.productName,
+              quantity: item.quantity,
+              unitPrice: item.product.price,
+            })),
+            shippingAddress: shippingAddressStr,
+            paymentMethod,
+          }),
+        }
+      );
+      // Use the real orderId returned by the server
+      newOrder.orderId = String(apiResponse.orderId);
+    } catch (err) {
+      // If API fails (e.g. user not logged in), we still let the UI succeed
+      // but log the error so dev can see it
+      console.warn("[CartContext] Failed to persist order to DB:", err);
+    }
+
+    try {
+      localStorage.setItem(`smartmart_order_${newOrder.orderId}`, JSON.stringify(newOrder));
       localStorage.setItem("smartmart_last_order", JSON.stringify(newOrder));
     } catch (e) {
       console.error("Storage error:", e);

@@ -1,115 +1,114 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Tags, 
-  PackageSearch, 
-  Warehouse, 
-  ShoppingCart, 
-  Users, 
-  Truck, 
-  FileText,
-  BarChart3,
-  LogOut 
-} from "lucide-react";
+import Link from "next/link";
 import { fetchApi } from "@/lib/api";
 import { useEffect, useState } from "react";
-
-const NAV_ITEMS = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/orders", label: "Orders", icon: ShoppingCart },
-  { href: "/admin/products", label: "Products", icon: PackageSearch },
-  { href: "/admin/categories", label: "Categories", icon: Tags },
-  { href: "/admin/inventory", label: "Inventory", icon: Warehouse },
-  { href: "/admin/customers", label: "Customers", icon: Users },
-  { href: "/admin/suppliers", label: "Suppliers", icon: Truck },
-  { href: "/admin/supplier-orders", label: "Supplier Orders", icon: FileText },
-  { href: "/admin/reports", label: "Reports", icon: BarChart3 },
-];
+import { AdminHeader } from "@/components/admin/AdminHeader";
+import { ShieldAlert, ArrowLeft, LogOut } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [admin, setAdmin] = useState<{ name: string; email: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const { data: session } = authClient.useSession();
 
   useEffect(() => {
-    fetchApi<any>("/api/auth/admin/me")
-      .then((data) => setAdmin(data))
-      .catch(() => router.push("/admin/login"));
-  }, [router]);
-
-  const handleLogout = async () => {
-    try {
-      await fetchApi("/api/auth/admin/logout", { method: "POST" });
-      router.push("/admin/login");
-    } catch (err) {
-      console.error(err);
+    // If on the login page, don't check /api/admin/me
+    if (pathname === "/admin/login") {
+      setLoading(false);
+      return;
     }
-  };
 
-  if (!admin && pathname !== "/admin/login") {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500">Loading...</div>;
-  }
+    fetchApi<any>("/api/admin/me")
+      .then((data) => {
+        setAdmin(data);
+        setAccessDenied(false);
+        setLoading(false);
+      })
+      .catch((err: any) => {
+        setLoading(false);
+        // If logged in as customer or forbidden (status 403)
+        if (err.status === 403 || (session && session.user.role !== "admin")) {
+          setAccessDenied(true);
+        } else {
+          // Not logged in at all -> redirect to login with admin role selected
+          router.push(`/admin/login?next=${encodeURIComponent(pathname)}&role=admin`);
+        }
+      });
+  }, [router, pathname, session]);
 
-  // If we are on the login page, don't show the sidebar
+  // If on the login page, render plain without admin header
   if (pathname === "/admin/login") {
     return <>{children}</>;
   }
 
+  // Access Denied Screen for non-admin users
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-[#FAF7F2] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-white rounded-[32px] border border-[#EBE4D6] shadow-sm p-8 sm:p-10 text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-[#FEEFEA] text-[#E45E36] flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black text-[#14231B] tracking-tight">
+              Access Restricted
+            </h1>
+            <p className="text-xs sm:text-sm text-[#66766B] leading-relaxed">
+              You are currently logged in as{" "}
+              <span className="font-semibold text-[#14231B]">
+                {session?.user.email || "a standard customer"}
+              </span>
+              . Only authorized store administrators can access this section.
+            </p>
+          </div>
+
+          <div className="space-y-2.5 pt-2">
+            <Link
+              href="/"
+              className="w-full py-3 bg-[#207B4A] hover:bg-[#18643B] text-white text-xs sm:text-sm font-bold rounded-2xl flex items-center justify-center gap-2 transition-colors shadow-xs"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Return to Customer Store
+            </Link>
+
+            <button
+              onClick={async () => {
+                await authClient.signOut();
+                router.push("/admin/login?role=admin");
+              }}
+              className="w-full py-2.5 bg-white border border-[#EAE2D4] hover:bg-[#FAF7F2] text-xs font-semibold text-[#C52B2B] rounded-2xl flex items-center justify-center gap-2 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Switch Account / Sign In as Admin
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && !admin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2] text-[#4A5D52]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-[#207B4A] border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm font-medium">Loading SmartMart Admin...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col fixed h-full z-10 shadow-sm">
-        <div className="p-6 border-b border-gray-100 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-lg">
-            S
-          </div>
-          <span className="text-xl font-bold text-gray-900 tracking-tight">SmartMart</span>
-        </div>
-        
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
-                  isActive 
-                    ? "bg-indigo-50 text-indigo-600 font-medium" 
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Icon size={20} className={isActive ? "text-indigo-600" : "text-gray-400"} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-gray-200">
-          <div className="mb-4 px-3 flex flex-col">
-            <span className="text-sm font-semibold text-gray-900">{admin?.name}</span>
-            <span className="text-xs text-gray-500 truncate">{admin?.email}</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg w-full text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <LogOut size={20} />
-            Logout
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 ml-64 min-h-screen">
-        <div className="p-8 max-w-7xl mx-auto">
-          {children}
-        </div>
+    <div className="min-h-screen bg-[#FAF7F2] text-[#14231B] flex flex-col font-sans">
+      <AdminHeader admin={admin} />
+      <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {children}
       </main>
     </div>
   );

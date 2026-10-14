@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   User,
   Mail,
@@ -15,16 +16,38 @@ import {
   X,
   Check,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Navbar } from "@/components/store/Navbar";
-import {
-  INITIAL_MOCK_PROFILE,
-  UserProfile,
-  UserAddress,
-} from "@/data/mockProfileData";
+import { authClient } from "@/lib/auth-client";
+import { fetchApi } from "@/lib/api";
+import { UserProfile, UserAddress } from "@/data/mockProfileData";
 
 export function ProfileClient() {
-  const [profile, setProfile] = useState<UserProfile>(INITIAL_MOCK_PROFILE);
+  const router = useRouter();
+  const { data: session, isPending: sessionLoading } = authClient.useSession();
+  
+  const [profile, setProfile] = useState<UserProfile>({
+    id: "",
+    name: "Customer",
+    email: "",
+    phoneNumber: "Not provided",
+    avatarUrl: "",
+    address: {
+      id: "addr-01",
+      title: "Delivery Address",
+      isDefault: true,
+      addressLine: "No address added yet",
+      landmark: "",
+      city: "",
+      state: "",
+      pincode: "",
+      tag: "home",
+    },
+  });
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Modal states for interactive editing
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -33,14 +56,22 @@ export function ProfileClient() {
 
   // Form states for profile
   const [profileForm, setProfileForm] = useState({
-    name: profile.name,
-    email: profile.email,
-    phoneNumber: profile.phoneNumber,
+    name: "",
+    email: "",
+    phoneNumber: "",
   });
 
   // Form states for address
   const [addressForm, setAddressForm] = useState<UserAddress>({
-    ...profile.address,
+    id: "addr-01",
+    title: "Delivery Address",
+    isDefault: true,
+    addressLine: "",
+    landmark: "",
+    city: "",
+    state: "",
+    pincode: "",
+    tag: "home",
   });
 
   // Toast feedback state
@@ -53,33 +84,119 @@ export function ProfileClient() {
     }, 3000);
   };
 
+  // Fetch real profile from session and /api/me
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfile() {
+      if (!session?.user) {
+        if (!sessionLoading) {
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      const userName = session.user.name || "Customer";
+      const userEmail = session.user.email || "";
+      const userImage = session.user.image || "";
+
+      try {
+        const res = await fetchApi<{ ok: boolean; user: any }>("/api/me");
+        if (active && res && res.user) {
+          const u = res.user;
+          let parsedAddress: Partial<UserAddress> = {};
+          if (u.address) {
+            try {
+              parsedAddress = JSON.parse(u.address);
+            } catch {
+              parsedAddress = { addressLine: u.address };
+            }
+          }
+
+          setProfile({
+            id: u.id,
+            name: u.name || userName,
+            email: u.email || userEmail,
+            phoneNumber: u.phone || "Not provided",
+            avatarUrl: u.image || userImage,
+            address: {
+              id: parsedAddress.id || "addr-01",
+              title: parsedAddress.title || "Delivery Address",
+              isDefault: parsedAddress.isDefault ?? true,
+              addressLine: parsedAddress.addressLine || (u.address ? u.address : "No address added yet"),
+              landmark: parsedAddress.landmark || "",
+              city: parsedAddress.city || "",
+              state: parsedAddress.state || "",
+              pincode: parsedAddress.pincode || "",
+              tag: parsedAddress.tag || "home",
+            },
+          });
+        }
+      } catch {
+        // Fallback to session details
+        if (active) {
+          setProfile((prev) => ({
+            ...prev,
+            id: session.user.id,
+            name: userName,
+            email: userEmail,
+            avatarUrl: userImage,
+          }));
+        }
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    loadProfile();
+
+    return () => {
+      active = false;
+    };
+  }, [session, sessionLoading]);
+
   const handleOpenEditProfile = () => {
     setProfileForm({
       name: profile.name,
       email: profile.email,
-      phoneNumber: profile.phoneNumber,
+      phoneNumber: profile.phoneNumber === "Not provided" ? "" : profile.phoneNumber,
     });
     setIsEditProfileOpen(true);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProfile((prev) => ({
-      ...prev,
-      name: profileForm.name,
-      email: profileForm.email,
-      phoneNumber: profileForm.phoneNumber,
-    }));
-    setIsEditProfileOpen(false);
-    showToast("Profile details updated successfully!");
+    setIsSaving(true);
+
+    try {
+      await fetchApi("/api/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: profileForm.name,
+          phone: profileForm.phoneNumber,
+        }),
+      });
+
+      setProfile((prev) => ({
+        ...prev,
+        name: profileForm.name,
+        phoneNumber: profileForm.phoneNumber || "Not provided",
+      }));
+      setIsEditProfileOpen(false);
+      showToast("Profile details updated successfully!");
+    } catch {
+      showToast("Failed to save profile changes. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleOpenAddAddress = () => {
     setIsEditingAddress(false);
     setAddressForm({
       id: "addr-" + Date.now(),
-      title: "New Address",
-      isDefault: false,
+      title: "Home",
+      isDefault: true,
       addressLine: "",
       landmark: "",
       city: "",
@@ -92,22 +209,41 @@ export function ProfileClient() {
 
   const handleOpenEditAddress = () => {
     setIsEditingAddress(true);
-    setAddressForm({ ...profile.address });
+    setAddressForm({
+      ...profile.address,
+      addressLine: profile.address.addressLine === "No address added yet" ? "" : profile.address.addressLine,
+    });
     setIsAddressModalOpen(true);
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
+  const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
-    setProfile((prev) => ({
-      ...prev,
-      address: { ...addressForm },
-    }));
-    setIsAddressModalOpen(false);
-    showToast(
-      isEditingAddress
-        ? "Address updated successfully!"
-        : "New address added successfully!"
-    );
+    setIsSaving(true);
+
+    try {
+      const addressJson = JSON.stringify(addressForm);
+      await fetchApi("/api/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          address: addressJson,
+        }),
+      });
+
+      setProfile((prev) => ({
+        ...prev,
+        address: { ...addressForm },
+      }));
+      setIsAddressModalOpen(false);
+      showToast(
+        isEditingAddress
+          ? "Address updated successfully!"
+          : "New address added successfully!"
+      );
+    } catch {
+      showToast("Failed to save address. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -428,9 +564,11 @@ export function ProfileClient() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-[#1E4D38] hover:bg-[#163C2B] text-white font-bold text-xs sm:text-sm shadow-xs transition"
+                  disabled={isSaving}
+                  className="flex-1 py-2.5 rounded-xl bg-[#1E4D38] hover:bg-[#163C2B] disabled:opacity-60 text-white font-bold text-xs sm:text-sm shadow-xs transition flex items-center justify-center gap-2"
                 >
-                  Save Changes
+                  {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>
@@ -596,9 +734,11 @@ export function ProfileClient() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-[#1E4D38] hover:bg-[#163C2B] text-white font-bold text-xs sm:text-sm shadow-xs transition"
+                  disabled={isSaving}
+                  className="flex-1 py-2.5 rounded-xl bg-[#1E4D38] hover:bg-[#163C2B] disabled:opacity-60 text-white font-bold text-xs sm:text-sm shadow-xs transition flex items-center justify-center gap-2"
                 >
-                  Save Address
+                  {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Save Address</span>
                 </button>
               </div>
             </form>

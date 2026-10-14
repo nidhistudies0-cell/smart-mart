@@ -26,6 +26,7 @@ export function AdminHeader({ admin }: AdminHeaderProps) {
 
   const navLinks = [
     { href: "/admin", label: "Dashboard", exact: true },
+    { href: "/admin/orders", label: "Orders", exact: false },
     { href: "/admin/products", label: "Products", exact: false },
     { href: "/admin/management", label: "Admin Management", exact: false },
     { href: "/admin/reports", label: "Admin Reports", exact: false },

@@ -20,20 +20,20 @@ export interface UserAddress {
 }
 
 export const INITIAL_MOCK_PROFILE: UserProfile = {
-  id: "user-juhi-01",
-  name: "Juhi Gupta",
-  email: "juhi.gupta@gmail.com",
-  phoneNumber: "+91 98765 43210",
-  avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+  id: "",
+  name: "Customer",
+  email: "",
+  phoneNumber: "Not provided",
+  avatarUrl: "",
   address: {
     id: "addr-01",
-    title: "Hostel Address",
+    title: "Delivery Address",
     isDefault: true,
-    addressLine: "TT Block, Room 307",
-    landmark: "VIT Vellore, Katpadi",
-    city: "Vellore",
-    state: "Tamil Nadu",
-    pincode: "632014",
-    tag: "hostel",
+    addressLine: "No address added yet",
+    landmark: "",
+    city: "",
+    state: "",
+    pincode: "",
+    tag: "home",
   },
 };

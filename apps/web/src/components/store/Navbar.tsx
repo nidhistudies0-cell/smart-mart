@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Search, ShoppingBag, Menu, X, ChevronDown, LogOut, Shield } from "lucide-react";
+import { Search, ShoppingBag, Menu, X, ChevronDown, LogOut, Shield, ArrowRight } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useCart } from "@/context/CartContext";
+import { ALL_PRODUCTS } from "@/data/mockStoreData";
 
 interface NavbarProps {
   cartCount?: number;
@@ -21,28 +22,58 @@ export function Navbar({
   onSearch,
 }: NavbarProps) {
   const { data: session } = authClient.useSession();
-  const { totalCount } = useCart();
+  const { totalCount, clearCart } = useCart();
   const effectiveCartCount = cartCount !== undefined ? cartCount : totalCount;
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [localSearchQuery, setLocalSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const activeSearchQuery = controlledSearchQuery !== undefined ? controlledSearchQuery : localSearchQuery;
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (onSearch) {
-      onSearch(activeSearchQuery);
-    } else if (activeSearchQuery.trim()) {
-      router.push(`/products?search=${encodeURIComponent(activeSearchQuery.trim())}`);
+  // Real-time suggestions from catalog
+  const searchSuggestions = activeSearchQuery.trim().length >= 1
+    ? ALL_PRODUCTS.filter((p) =>
+        p.productName.toLowerCase().includes(activeSearchQuery.toLowerCase()) ||
+        (p.categoryName && p.categoryName.toLowerCase().includes(activeSearchQuery.toLowerCase())) ||
+        (p.description && p.description.toLowerCase().includes(activeSearchQuery.toLowerCase()))
+      ).slice(0, 5)
+    : [];
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSearchOpen(false);
+
+    if (activeSearchQuery.trim()) {
+      if (pathname.startsWith("/products") && onSearch) {
+        onSearch(activeSearchQuery.trim());
+      } else {
+        router.push(`/products?search=${encodeURIComponent(activeSearchQuery.trim())}`);
+      }
     }
   };
 
   const handleSearchChange = (val: string) => {
     setLocalSearchQuery(val);
-    if (onSearch) {
+    setIsSearchOpen(true);
+    if (pathname.startsWith("/products") && onSearch) {
       onSearch(val);
     }
   };
@@ -131,22 +162,84 @@ export function Navbar({
             </Link>
           </nav>
 
-          {/* Search Bar */}
-          <form
-            onSubmit={handleSearchSubmit}
-            className="hidden md:flex items-center flex-1 max-w-md relative mx-2"
-          >
-            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
-              <Search className="w-4 h-4" />
-            </div>
-            <input
-              type="text"
-              value={activeSearchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder="Search for groceries, beverages, household items..."
-              className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-[#FCFAF7] border border-stone-200/90 rounded-full placeholder:text-stone-400 text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#286345]/20 focus:border-[#286345] transition-all shadow-2xs"
-            />
-          </form>
+          {/* Search Bar with Autocomplete Suggestions */}
+          <div ref={searchContainerRef} className="hidden md:flex flex-1 max-w-md relative mx-2">
+            <form
+              onSubmit={handleSearchSubmit}
+              className="w-full relative"
+            >
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-stone-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                value={activeSearchQuery}
+                onFocus={() => setIsSearchOpen(true)}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder="Search for groceries, beverages, household items..."
+                className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-[#FCFAF7] border border-stone-200/90 rounded-full placeholder:text-stone-400 text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#286345]/20 focus:border-[#286345] transition-all shadow-2xs"
+              />
+            </form>
+
+            {/* Live Suggestions Dropdown */}
+            {isSearchOpen && activeSearchQuery.trim().length >= 1 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-stone-200/80 overflow-hidden z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                {searchSuggestions.length > 0 ? (
+                  <div className="py-2">
+                    <div className="px-3.5 py-1.5 text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
+                      Matching Products
+                    </div>
+                    {searchSuggestions.map((prod) => (
+                      <Link
+                        key={prod.productId}
+                        href={`/products/${prod.productId}`}
+                        onClick={() => setIsSearchOpen(false)}
+                        className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-[#FAF7F2] transition-colors group"
+                      >
+                        <img
+                          src={prod.imageUrl}
+                          alt={prod.productName}
+                          className="w-9 h-9 rounded-lg object-cover bg-stone-100 shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-stone-800 truncate group-hover:text-[#1E4D38]">
+                            {prod.productName}
+                          </p>
+                          <p className="text-[11px] text-stone-500">
+                            ₹{prod.price} {prod.packageSize ? `• ${prod.packageSize}` : ""}
+                          </p>
+                        </div>
+                        <ArrowRight className="w-3.5 h-3.5 text-stone-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </Link>
+                    ))}
+                    <div className="border-t border-stone-100 mt-1 pt-1.5 px-3.5 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => handleSearchSubmit()}
+                        className="w-full text-left text-xs font-semibold text-[#1E4D38] hover:underline flex items-center justify-between"
+                      >
+                        <span>See all results for &ldquo;{activeSearchQuery}&rdquo;</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 px-4 text-center">
+                    <p className="text-xs text-stone-500 font-medium">
+                      No products found matching &ldquo;{activeSearchQuery}&rdquo;
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleSearchSubmit()}
+                      className="mt-2 text-xs font-semibold text-[#1E4D38] hover:underline"
+                    >
+                      Search in catalog anyway
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Right Actions: Cart, User Profile / Auth */}
           <div className="flex items-center gap-2 sm:gap-3">
@@ -212,11 +305,12 @@ export function Navbar({
                       </Link>
                     )}
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setUserDropdownOpen(false);
-                        authClient.signOut();
+                        await authClient.signOut();
+                        router.push("/");
                       }}
-                      className="flex items-center gap-1.5 w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-50 border-t border-stone-100"
+                      className="flex items-center gap-1.5 w-full text-left px-4 py-2 text-stone-700 hover:bg-stone-50 border-t border-stone-100 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" /> Sign Out
                     </button>
@@ -316,11 +410,12 @@ export function Navbar({
                     </Link>
                   )}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setMobileMenuOpen(false);
-                      authClient.signOut();
+                      await authClient.signOut();
+                      router.push("/");
                     }}
-                    className="text-left px-4 py-2 text-sm font-medium text-stone-600"
+                    className="text-left px-4 py-2 text-sm font-medium text-stone-600 cursor-pointer"
                   >
                     Sign Out
                   </button>

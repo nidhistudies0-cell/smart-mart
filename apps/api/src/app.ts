@@ -11,6 +11,8 @@ import supplierOrdersRoutes from "./modules/suppliers/supplier-orders.routes.js"
 import productsRoutes from "./modules/products/products.routes.js";
 import inventoryRoutes from "./modules/inventory/inventory.routes.js";
 import ordersRoutes from "./modules/orders/orders.routes.js";
+import checkoutRoutes from "./modules/cart/checkout.routes.js";
+import cartRoutes from "./modules/cart/cart.routes.js";
 import customersRoutes from "./modules/customers/customers.routes.js";
 import reportsRoutes from "./modules/reports/reports.routes.js";
 import { toNodeHandler } from "better-auth/node";
@@ -48,6 +50,8 @@ app.use("/api/supplier-orders", supplierOrdersRoutes);
 app.use("/api/products", productsRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/orders", ordersRoutes);
+app.use("/api/checkout", checkoutRoutes);
+app.use("/api/cart", cartRoutes);
 app.use("/api/customers", customersRoutes);
 app.use("/api/reports", reportsRoutes);
 
