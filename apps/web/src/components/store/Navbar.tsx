@@ -295,6 +295,13 @@ export function Navbar({
                     >
                       My Account
                     </Link>
+                    <Link
+                      href="/orders"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="block px-4 py-2 text-stone-700 hover:bg-stone-50"
+                    >
+                      Order History
+                    </Link>
                     {session.user.role === "admin" && (
                       <Link
                         href="/admin"
@@ -399,6 +406,13 @@ export function Navbar({
                     className="px-4 py-2 text-sm font-semibold text-stone-800"
                   >
                     My Account ({session.user.name})
+                  </Link>
+                  <Link
+                    href="/orders"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-4 py-2 text-sm font-semibold text-stone-800"
+                  >
+                    Order History
                   </Link>
                   {session.user.role === "admin" && (
                     <Link

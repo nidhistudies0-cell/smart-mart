@@ -1,18 +1,30 @@
 import { Router } from "express";
 import { db, orders, orderDetails, product, customer, user, payment, eq, asc, desc, and, ilike } from "@smartmart/db";
-import { requireAdmin } from "../../middleware/auth.js";
-import { badRequest, notFound } from "../../utils/httpError.js";
+import { requireAuth, requireAdmin } from "../../middleware/auth.js";
+import { badRequest, notFound, forbidden } from "../../utils/httpError.js";
 
 const router = Router();
-router.use(requireAdmin);
 
 // GET /api/orders?status=&customerId=
-router.get("/", async (req, res, next) => {
+// Authenticated customers see only their own orders; admins can view all or filter by customerId
+router.get("/", requireAuth, async (req, res, next) => {
   try {
     const { status, customerId } = req.query as Record<string, string>;
     const conditions: any[] = [];
+    const authCtx = req.auth!;
+
+    if (authCtx.role === "admin") {
+      // Admins can see all orders or filter by customerId
+      if (customerId) conditions.push(eq(orders.customerId, Number(customerId)));
+    } else {
+      // Regular customer can ONLY view their own orders
+      if (!authCtx.customerId) {
+        return res.json([]);
+      }
+      conditions.push(eq(orders.customerId, authCtx.customerId));
+    }
+
     if (status) conditions.push(eq(orders.orderStatus, status as any));
-    if (customerId) conditions.push(eq(orders.customerId, Number(customerId)));
 
     const rows = await db
       .select({
@@ -35,9 +47,11 @@ router.get("/", async (req, res, next) => {
 });
 
 // GET /api/orders/:id  — includes order items
-router.get("/:id", async (req, res, next) => {
+router.get("/:id", requireAuth, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    const authCtx = req.auth!;
+
     const [order] = await db
       .select({
         orderId: orders.orderId,
@@ -54,6 +68,11 @@ router.get("/:id", async (req, res, next) => {
       .leftJoin(user, eq(customer.userId, user.id))
       .where(eq(orders.orderId, id));
     if (!order) return next(notFound("Order not found"));
+
+    // Verify ownership: customers can only view their own order
+    if (authCtx.role !== "admin" && order.customerId !== authCtx.customerId) {
+      return next(forbidden("You do not have access to view this order"));
+    }
 
     const items = await db
       .select({
@@ -73,8 +92,8 @@ router.get("/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/orders/:id/status
-router.patch("/:id/status", async (req, res, next) => {
+// PATCH /api/orders/:id/status (Admin only)
+router.patch("/:id/status", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const { orderStatus } = req.body as { orderStatus?: string };
