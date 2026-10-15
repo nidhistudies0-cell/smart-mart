@@ -4,9 +4,8 @@ import { requireAdmin } from "../../middleware/auth.js";
 import { badRequest, notFound } from "../../utils/httpError.js";
 
 const router = Router();
-router.use(requireAdmin);
 
-// GET /api/products?search=&categoryId=&supplierId=&isActive=
+// GET /api/products?search=&categoryId=&supplierId=&isActive= — Public store catalog
 router.get("/", async (req, res, next) => {
   try {
     const { search, categoryId, supplierId, isActive } = req.query as Record<string, string>;
@@ -44,8 +43,8 @@ router.get("/", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/products  — also creates inventory row
-router.post("/", async (req, res, next) => {
+// POST /api/products  — also creates inventory row (Admin only)
+router.post("/", requireAdmin, async (req, res, next) => {
   try {
     const { productName, description, price, expiryDate, imageUrl, categoryId, supplierId, isActive, initialStock, reorderLevel } = req.body as Record<string, any>;
     if (!productName?.trim()) return next(badRequest("productName is required"));
@@ -79,7 +78,7 @@ router.post("/", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/products/:id
+// GET /api/products/:id — Public
 router.get("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -110,8 +109,8 @@ router.get("/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/products/:id
-router.patch("/:id", async (req, res, next) => {
+// PATCH /api/products/:id (Admin only)
+router.patch("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const { productName, description, price, expiryDate, imageUrl, categoryId, supplierId, isActive, currentStock, reorderLevel } = req.body as Record<string, any>;
@@ -160,8 +159,8 @@ router.patch("/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/products/:id
-router.delete("/:id", async (req, res, next) => {
+// DELETE /api/products/:id (Admin only)
+router.delete("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const [row] = await db.delete(product).where(eq(product.productId, id)).returning();

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -27,19 +27,46 @@ import { ProductCard } from "./ProductCard";
 import { useCart } from "@/context/CartContext";
 import { ALL_PRODUCTS } from "@/data/mockStoreData";
 import { formatINR } from "@/lib/format";
+import { fetchApi } from "@/lib/api";
 
 interface ProductDetailsClientProps {
   product: Product;
 }
 
-export function ProductDetailsClient({ product }: ProductDetailsClientProps) {
+export function ProductDetailsClient({ product: initialProduct }: ProductDetailsClientProps) {
   const { addToCart } = useCart();
+  const [product, setProduct] = useState<Product>(initialProduct);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"description" | "nutrition" | "shipping">("description");
   const [isFavorite, setIsFavorite] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [imgError, setImgError] = useState(false);
+
+  // Fetch live currentStock from DB
+  useEffect(() => {
+    let active = true;
+
+    fetchApi<any>(`/api/products/${initialProduct.productId}`)
+      .then((data) => {
+        if (!active || !data) return;
+        setProduct((prev) => ({
+          ...prev,
+          productName: data.productName || prev.productName,
+          description: data.description || prev.description,
+          price: data.price ? Number(data.price) : prev.price,
+          categoryName: data.categoryName || prev.categoryName,
+          imageUrl: data.imageUrl || prev.imageUrl,
+          currentStock: data.currentStock !== undefined && data.currentStock !== null ? Number(data.currentStock) : prev.currentStock,
+          isActive: data.isActive !== undefined ? Boolean(data.isActive) : prev.isActive,
+        }));
+      })
+      .catch(() => null);
+
+    return () => {
+      active = false;
+    };
+  }, [initialProduct.productId]);
 
   // Gallery images array
   const galleryImages =

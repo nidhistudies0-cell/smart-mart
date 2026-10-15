@@ -4,9 +4,8 @@ import { requireAdmin } from "../../middleware/auth.js";
 import { badRequest, notFound } from "../../utils/httpError.js";
 
 const router = Router();
-router.use(requireAdmin);
 
-// GET /api/categories
+// GET /api/categories — Public
 router.get("/", async (_req, res, next) => {
   try {
     const rows = await db.select().from(category).orderBy(asc(category.categoryName));
@@ -14,8 +13,8 @@ router.get("/", async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/categories
-router.post("/", async (req, res, next) => {
+// POST /api/categories (Admin only)
+router.post("/", requireAdmin, async (req, res, next) => {
   try {
     const { categoryName } = req.body as { categoryName?: string };
     if (!categoryName?.trim()) return next(badRequest("categoryName is required"));
@@ -24,7 +23,7 @@ router.post("/", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/categories/:id
+// GET /api/categories/:id — Public
 router.get("/:id", async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -34,8 +33,8 @@ router.get("/:id", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// PATCH /api/categories/:id
-router.patch("/:id", async (req, res, next) => {
+// PATCH /api/categories/:id (Admin only)
+router.patch("/:id", requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const { categoryName } = req.body as { categoryName?: string };

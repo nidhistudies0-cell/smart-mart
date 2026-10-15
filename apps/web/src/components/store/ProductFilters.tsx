@@ -15,6 +15,7 @@ interface ProductFiltersProps {
   sortBy: SortOption;
   onSortByChange: (val: SortOption) => void;
   onResetFilters?: () => void;
+  categoriesList?: { categoryId: number; categoryName: string }[];
 }
 
 export function ProductFilters({
@@ -27,15 +28,17 @@ export function ProductFilters({
   sortBy,
   onSortByChange,
   onResetFilters,
+  categoriesList,
 }: ProductFiltersProps) {
   const [categoriesOpen, setCategoriesOpen] = useState(true);
   const [priceOpen, setPriceOpen] = useState(true);
   const [availabilityOpen, setAvailabilityOpen] = useState(true);
   const [sortOpen, setSortOpen] = useState(true);
 
+  const sourceCategories = categoriesList && categoriesList.length > 0 ? categoriesList : MOCK_CATEGORIES;
   const categories = [
     { id: "all", name: "All Categories" },
-    ...MOCK_CATEGORIES.map((c) => ({ id: c.categoryName, name: c.categoryName })),
+    ...sourceCategories.map((c) => ({ id: c.categoryName, name: c.categoryName })),
   ];
 
   const sortOptions: { id: SortOption; label: string }[] = [

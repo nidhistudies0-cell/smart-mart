@@ -8,9 +8,10 @@ import { ProductFilters } from "@/components/store/ProductFilters";
 import { ProductGrid } from "@/components/store/ProductGrid";
 import { Pagination } from "@/components/store/Pagination";
 import { ALL_PRODUCTS } from "@/data/mockStoreData";
-import { Product, SortOption, ViewMode } from "@/types/store";
+import { Product, SortOption, ViewMode, Category } from "@/types/store";
 import { X, Filter } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { fetchApi } from "@/lib/api";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -32,9 +33,73 @@ export function ProductsPageClient() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>(ALL_PRODUCTS);
+  const [categoriesList, setCategoriesList] = useState<Category[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Cart from Global Context
   const { addToCart, showToast } = useCart();
+
+  // Fetch live products and categories from DB
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([
+      fetchApi<any[]>("/api/products").catch(() => null),
+      fetchApi<any[]>("/api/categories").catch(() => null),
+    ]).then(([prods, cats]) => {
+      if (!active) return;
+
+      if (prods && Array.isArray(prods) && prods.length > 0) {
+        const mappedProds: Product[] = prods.map((p) => {
+          // match mock product for any rich fallback attributes (like highlights/packageSize)
+          const mockMatch = ALL_PRODUCTS.find(
+            (m) => m.productId === p.productId || m.productName.toLowerCase() === p.productName.toLowerCase()
+          );
+
+          return {
+            productId: p.productId,
+            productName: p.productName,
+            description: p.description || mockMatch?.description || "",
+            fullDescription: mockMatch?.fullDescription,
+            price: Number(p.price),
+            packageSize: mockMatch?.packageSize,
+            imageUrl: p.imageUrl || mockMatch?.imageUrl || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80",
+            images: mockMatch?.images || [p.imageUrl],
+            categoryId: p.categoryId,
+            categoryName: p.categoryName || mockMatch?.categoryName || "Grocery",
+            currentStock: p.currentStock !== undefined && p.currentStock !== null ? Number(p.currentStock) : (mockMatch?.currentStock ?? 0),
+            isActive: p.isActive !== false,
+            isPopular: mockMatch?.isPopular ?? false,
+            unitPrice: mockMatch?.unitPrice,
+            supplier: p.supplierName || mockMatch?.supplier,
+            expiryDate: p.expiryDate ? String(p.expiryDate) : mockMatch?.expiryDate,
+            highlights: mockMatch?.highlights,
+            storageInstructions: mockMatch?.storageInstructions,
+            nutritionalInfo: mockMatch?.nutritionalInfo,
+          };
+        });
+
+        setProducts(mappedProds);
+      }
+
+      if (cats && Array.isArray(cats) && cats.length > 0) {
+        setCategoriesList(
+          cats.map((c) => ({
+            categoryId: c.categoryId,
+            categoryName: c.categoryName,
+            slug: c.categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            imageUrl: "",
+          }))
+        );
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Keep in sync if URL params change
   useEffect(() => {
@@ -59,7 +124,7 @@ export function ProductsPageClient() {
 
   // Filter & Sort Logic
   const filteredAndSortedProducts = useMemo(() => {
-    let list = [...ALL_PRODUCTS];
+    let list = [...products];
 
     // 1. Category Filter
     if (selectedCategory && selectedCategory !== "all") {
@@ -202,6 +267,7 @@ export function ProductsPageClient() {
                 setCurrentPage(1);
               }}
               onResetFilters={activeFilterCount > 0 ? handleResetFilters : undefined}
+              categoriesList={categoriesList}
             />
           </div>
 
@@ -264,6 +330,7 @@ export function ProductsPageClient() {
                 sortBy={sortBy}
                 onSortByChange={setSortBy}
                 onResetFilters={handleResetFilters}
+                categoriesList={categoriesList}
               />
             </div>
 
