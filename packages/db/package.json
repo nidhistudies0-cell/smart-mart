@@ -13,7 +13,6 @@
     "studio": "drizzle-kit studio",
 
     "reset": "tsx scripts/reset.ts",
-    "seed": "tsx scripts/seed.ts",
     "tx-check": "tsx scripts/tx-check.ts",
     "typecheck": "tsc --noEmit"
   },

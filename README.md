@@ -198,8 +198,7 @@ smart-mart/
         ├── src/
         │   ├── schema.ts                  # Drizzle ORM schema, relations & check constraints
         │   └── client.ts                  # PostgreSQL connection pool
-        └── scripts/
-            └── seed.ts                    # Realistic database seed dataset
+        └── scripts/                       # Database reset and transaction-check utilities
 ```
 
 ---
@@ -247,13 +246,10 @@ PORT=5001
 WEB_ORIGIN=http://localhost:3000
 ```
 
-### 3. Push Database Schema & Seed Data
+### 3. Push Database Schema
 ```bash
 # Push table definitions and constraints to PostgreSQL
 npm run db:push
-
-# (Optional) Seed catalog, categories, products, inventory & suppliers
-npx tsx packages/db/scripts/seed.ts
 ```
 
 ### 4. Create an Admin Account
