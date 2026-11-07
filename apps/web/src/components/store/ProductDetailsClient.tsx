@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 import {
   Heart,
   ShoppingCart,
@@ -25,6 +27,7 @@ import { Product } from "@/types/store";
 import { Navbar } from "./Navbar";
 import { ProductCard } from "./ProductCard";
 import { useCart } from "@/context/CartContext";
+import { useWishlist } from "@/context/WishlistContext";
 import { ALL_PRODUCTS } from "@/data/mockStoreData";
 import { formatINR } from "@/lib/format";
 import { fetchApi } from "@/lib/api";
@@ -34,12 +37,15 @@ interface ProductDetailsClientProps {
 }
 
 export function ProductDetailsClient({ product: initialProduct }: ProductDetailsClientProps) {
+  const router = useRouter();
+  const { data: session } = authClient.useSession();
   const { addToCart } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const isFavorite = isInWishlist(initialProduct.productId);
   const [product, setProduct] = useState<Product>(initialProduct);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<"description" | "nutrition" | "shipping">("description");
-  const [isFavorite, setIsFavorite] = useState(false);
   const [isAdded, setIsAdded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -89,6 +95,10 @@ export function ProductDetailsClient({ product: initialProduct }: ProductDetails
   };
 
   const handleAddToCart = () => {
+    if (!session?.user) {
+      router.push("/login");
+      return;
+    }
     if (!isInStock) return;
     const res = addToCart(product, quantity);
     if (res.success) {
@@ -187,7 +197,13 @@ export function ProductDetailsClient({ product: initialProduct }: ProductDetails
             <div className="relative flex-1 w-full rounded-3xl overflow-hidden bg-white border border-stone-200/80 aspect-square flex items-center justify-center p-6 sm:p-8 shadow-2xs">
               {/* Wishlist Heart Button Top-Right */}
               <button
-                onClick={() => setIsFavorite(!isFavorite)}
+                onClick={() => {
+                  if (!session?.user) {
+                    router.push("/login");
+                    return;
+                  }
+                  toggleWishlist(product);
+                }}
                 aria-label={isFavorite ? "Remove from wishlist" : "Add to wishlist"}
                 className={`absolute top-4 right-4 z-10 w-11 h-11 rounded-full bg-white/95 backdrop-blur-xs border border-stone-200/90 flex items-center justify-center shadow-xs transition-all duration-200 cursor-pointer ${
                   isFavorite

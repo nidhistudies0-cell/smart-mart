@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 import {
   Trash2,
   Plus,
@@ -26,6 +27,7 @@ import { formatINR } from "@/lib/format";
 
 export default function CartPage() {
   const router = useRouter();
+  const { data: session, isPending: sessionLoading } = authClient.useSession();
   const {
     items,
     updateQuantity,
@@ -63,6 +65,20 @@ export default function CartPage() {
   );
   const allSelected =
     items.length > 0 && activeSelectedIds.length === items.length;
+
+  useEffect(() => {
+    if (!sessionLoading && !session?.user) {
+      router.push("/login");
+    }
+  }, [session, sessionLoading, router]);
+
+  if (sessionLoading || !session?.user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAF7F2]">
+        <div className="w-8 h-8 border-3 border-[#1E4D38] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const handleToggleSelectAll = () => {
     if (allSelected) {

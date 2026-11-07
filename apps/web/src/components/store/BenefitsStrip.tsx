@@ -27,7 +27,7 @@ export function BenefitsStrip({ items = BENEFITS_ITEMS }: BenefitsStripProps) {
 
   return (
     <section className="py-6 sm:py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white/80 backdrop-blur-xs rounded-2xl sm:rounded-3xl border border-[#ECE5DB] p-5 sm:p-7 shadow-2xs">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
             {items.map((item) => {

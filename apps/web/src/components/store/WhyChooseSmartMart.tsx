@@ -4,6 +4,7 @@ import React from "react";
 import { Tag, ShieldCheck, RefreshCcw, Headphones } from "lucide-react";
 import { WhyChooseItem } from "@/types/store";
 import { WHY_CHOOSE_ITEMS } from "@/data/mockStoreData";
+import SplitText from "@/components/ui/SplitText";
 
 interface WhyChooseSmartMartProps {
   items?: WhyChooseItem[];
@@ -28,17 +29,25 @@ export function WhyChooseSmartMart({
   };
 
   return (
-    <section className="py-12 sm:py-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section id="why-choose" className="py-12 sm:py-16">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Heading */}
-        <div className="text-left mb-10 sm:mb-12">
-          <span className="text-xs font-bold tracking-widest uppercase text-stone-500 block mb-2">
+        <div className="relative text-center mb-10 sm:mb-14 max-w-3xl mx-auto px-4">
+          <span className="text-xs sm:text-sm font-bold tracking-widest uppercase text-stone-500 block mb-2 sm:mb-3">
             Why Choose SmartMart
           </span>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-stone-900 tracking-tight">
-            More Than Just a Supermarket
-          </h2>
+          <SplitText
+            tag="h2"
+            text="More Than Just a Supermarket"
+            className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-stone-900 tracking-tight leading-tight justify-center"
+            effect="rise"
+            hoverEffect="lift"
+            splitType="chars"
+            delay={30}
+            duration={0.8}
+            textAlign="center"
+          />
         </div>
 
         {/* 4 Feature Items */}

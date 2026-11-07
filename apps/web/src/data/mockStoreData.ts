@@ -1,9 +1,9 @@
 import { Category, Product, BenefitItem, WhyChooseItem, HeroStat } from "@/types/store";
 
 export const HERO_STATS: HeroStat[] = [
-  { value: "500+", label: "Products" },
-  { value: "50+", label: "Happy Customers" },
-  { value: "10+", label: "Categories" },
+  { value: "25+", label: "Fresh Items" },
+  { value: "100%", label: "Organic & Fresh" },
+  { value: "7+", label: "Categories" },
 ];
 
 export const MOCK_CATEGORIES: Category[] = [
@@ -296,9 +296,9 @@ export const ALL_PRODUCTS: Product[] = [
     categoryId: 1,
     categoryName: "Fruits & Vegetables",
     imageUrl: "https://images.unsplash.com/photo-1584270354949-c26b0d5b4a0c?auto=format&fit=crop&w=600&q=80",
-    currentStock: 35,
+    currentStock: 0,
     isActive: true,
-    isPopular: true,
+    isPopular: false,
   },
   {
     productId: 111,

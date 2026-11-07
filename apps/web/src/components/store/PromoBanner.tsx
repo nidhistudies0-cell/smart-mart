@@ -12,7 +12,7 @@ interface PromoBannerProps {
 export function PromoBanner({ onShopNowClick }: PromoBannerProps) {
   return (
     <section className="py-8 sm:py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative rounded-3xl sm:rounded-[2.5rem] bg-[#DBE7D5] overflow-hidden border border-[#CBDCC4]/80 shadow-card">
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center p-6 sm:p-10 lg:p-12 relative z-10">
@@ -29,7 +29,7 @@ export function PromoBanner({ onShopNowClick }: PromoBannerProps) {
               </p>
               <div className="pt-2">
                 <Link
-                  href="#products"
+                  href="/products"
                   onClick={onShopNowClick}
                   className="inline-flex items-center justify-center gap-2 px-7 py-3 rounded-full text-sm sm:text-base font-semibold text-white bg-[#1E4D38] hover:bg-[#163C2B] shadow-sm hover:shadow-md transition-all duration-200 group"
                 >

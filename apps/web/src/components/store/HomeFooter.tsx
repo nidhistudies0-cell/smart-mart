@@ -19,7 +19,7 @@ export function HomeFooter() {
 
   return (
     <footer className="border-t border-[#EAE3D7] bg-[#FAF7F2] text-stone-700 pt-16 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main Footer Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8 pb-12 border-b border-stone-200/80">
@@ -117,8 +117,8 @@ export function HomeFooter() {
             </div>
           </div>
 
-          {/* Quick Links Column (Col span 2) */}
-          <div className="lg:col-span-2 space-y-3">
+          {/* Quick Links Column */}
+          <div className="lg:col-span-3 space-y-3">
             <h4 className="text-sm font-bold text-stone-900 tracking-wider">
               Quick Links
             </h4>
@@ -129,25 +129,30 @@ export function HomeFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="#products" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  Products
+                <Link href="/products" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
+                  All Products
                 </Link>
               </li>
               <li>
-                <Link href="#about" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  About
+                <Link href="/#categories" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
+                  Categories
                 </Link>
               </li>
               <li>
-                <Link href="#contact" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  Contact
+                <Link href="/wishlist" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
+                  My Wishlist
+                </Link>
+              </li>
+              <li>
+                <Link href="/cart" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
+                  Shopping Cart
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Categories Column (Col span 2) */}
-          <div className="lg:col-span-2 space-y-3">
+          {/* Categories Column */}
+          <div className="lg:col-span-3 space-y-3">
             <h4 className="text-sm font-bold text-stone-900 tracking-wider">
               Categories
             </h4>
@@ -155,7 +160,7 @@ export function HomeFooter() {
               {MOCK_CATEGORIES.slice(0, 6).map((cat) => (
                 <li key={cat.categoryId}>
                   <Link
-                    href="#products"
+                    href={`/products?category=${encodeURIComponent(cat.categoryName)}`}
                     className="text-stone-600 hover:text-[#1E4D38] transition-colors"
                   >
                     {cat.categoryName}
@@ -165,41 +170,7 @@ export function HomeFooter() {
             </ul>
           </div>
 
-          {/* Help Column (Col span 2) */}
-          <div className="lg:col-span-2 space-y-3">
-            <h4 className="text-sm font-bold text-stone-900 tracking-wider">
-              Help
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="#faqs" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  FAQs
-                </Link>
-              </li>
-              <li>
-                <Link href="#shipping" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  Shipping & Delivery
-                </Link>
-              </li>
-              <li>
-                <Link href="#returns" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  Returns & Refunds
-                </Link>
-              </li>
-              <li>
-                <Link href="#terms" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  Terms of Use
-                </Link>
-              </li>
-              <li>
-                <Link href="#privacy" className="text-stone-600 hover:text-[#1E4D38] transition-colors">
-                  Privacy Policy
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Newsletter Column (Col span 2) */}
+          {/* Newsletter Column */}
           <div className="lg:col-span-2 space-y-3">
             <h4 className="text-sm font-bold text-stone-900 tracking-wider">
               Stay Updated

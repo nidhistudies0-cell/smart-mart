@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Product } from "@/types/store";
 import { Toast } from "@/components/store/Toast";
 import { ALL_PRODUCTS } from "@/data/mockStoreData";
@@ -124,6 +125,7 @@ const COUPON_STORAGE_KEY = "smartmart_coupon_v2";
 const FREE_DELIVERY_THRESHOLD = 1000;
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [items, setItems] = useState<CartItem[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -143,20 +145,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // If user is truly logged out
+      // If user is logged out, clear cart items (authentication required)
       if (!session?.user) {
-        let guestItems: CartItem[] = [];
         try {
-          const stored = localStorage.getItem("smartmart_guest_cart");
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed)) guestItems = parsed;
-          }
-        } catch {
-          // Fallback
-        }
+          localStorage.removeItem("smartmart_guest_cart");
+          localStorage.removeItem("smartmart_guest_coupon");
+        } catch {}
         if (active) {
-          setItems(guestItems);
+          setItems([]);
           setAppliedCoupon(null);
           setIsLoaded(true);
         }
@@ -236,6 +232,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addToCart = (product: Product, quantityToAdd = 1): AddToCartResult => {
+    if (!session?.user) {
+      const message = "Please log in to add items to your cart";
+      showToast(message);
+      router.push("/login");
+      return { success: false, message };
+    }
+
     const stock = product.currentStock ?? 999;
 
     if (stock <= 0) {

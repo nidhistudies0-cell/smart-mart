@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/store/Navbar";
 import { HeroSection } from "@/components/store/HeroSection";
 import { BenefitsStrip } from "@/components/store/BenefitsStrip";
@@ -17,15 +18,17 @@ import {
   WHY_CHOOSE_ITEMS,
   HERO_STATS,
 } from "@/data/mockStoreData";
-import { Product, Category } from "@/types/store";
+import { Product, Category, HeroStat } from "@/types/store";
 import { useCart } from "@/context/CartContext";
 import { fetchApi } from "@/lib/api";
 
 export default function HomePage() {
   const { addToCart, showToast } = useCart();
+  const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>(MOCK_FEATURED_PRODUCTS);
   const [categoriesList, setCategoriesList] = useState<Category[]>(MOCK_CATEGORIES);
+  const [heroStats, setHeroStats] = useState<HeroStat[]>(HERO_STATS);
 
   // Fetch live products with currentStock from database
   React.useEffect(() => {
@@ -66,25 +69,51 @@ export default function HomePage() {
           };
         });
 
-        // Filter for active popular products, or top 5 products
-        const popular = mapped.filter((p) => p.isPopular);
-        setFeaturedProducts(popular.length >= 4 ? popular.slice(0, 5) : mapped.slice(0, 5));
+        // Filter for active popular products that are in stock (currentStock > 0), or top in-stock products
+        const inStockPopular = mapped.filter((p) => p.isPopular && (p.currentStock ?? 0) > 0);
+        const fallbackInStock = mapped.filter((p) => (p.currentStock ?? 0) > 0);
+        setFeaturedProducts(
+          inStockPopular.length >= 4
+            ? inStockPopular.slice(0, 5)
+            : fallbackInStock.length > 0
+            ? fallbackInStock.slice(0, 5)
+            : mapped.slice(0, 5)
+        );
       }
 
       if (cats && Array.isArray(cats) && cats.length > 0) {
         setCategoriesList(
           cats.map((c) => {
             const mockC = MOCK_CATEGORIES.find((m) => m.categoryName.toLowerCase() === c.categoryName.toLowerCase());
+            // Calculate accurate item count from live products in this category
+            const countFromProds = Array.isArray(prods)
+              ? prods.filter(
+                  (p) =>
+                    p.categoryId === c.categoryId ||
+                    (p.categoryName && p.categoryName.toLowerCase() === c.categoryName.toLowerCase())
+                ).length
+              : undefined;
+
             return {
               categoryId: c.categoryId,
               categoryName: c.categoryName,
               slug: c.categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
               imageUrl: mockC?.imageUrl || "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80",
-              itemCount: mockC?.itemCount,
+              itemCount: countFromProds !== undefined && countFromProds > 0 ? countFromProds : undefined,
             };
           })
         );
       }
+
+      // Compute dynamic, accurate hero stats from live database catalog
+      const totalProductCount = Array.isArray(prods) && prods.length > 0 ? prods.length : ALL_PRODUCTS.length;
+      const totalCategoryCount = Array.isArray(cats) && cats.length > 0 ? cats.length : MOCK_CATEGORIES.length;
+
+      setHeroStats([
+        { value: `${totalProductCount}+`, label: "Fresh Items" },
+        { value: "100%", label: "Organic & Fresh" },
+        { value: `${totalCategoryCount}+`, label: "Categories" },
+      ]);
     });
 
     return () => {
@@ -96,17 +125,8 @@ export default function HomePage() {
     addToCart(product, 1);
   };
 
-  const handleToggleFavorite = (product: Product, isFav: boolean) => {
-    showToast(
-      isFav
-        ? `Added "${product.productName}" to wishlist`
-        : `Removed "${product.productName}" from wishlist`
-    );
-  };
-
   const handleSelectCategory = (category: Category) => {
-    setSelectedCategory(category.categoryName);
-    showToast(`Filtered by category: "${category.categoryName}"`);
+    router.push(`/products?category=${encodeURIComponent(category.categoryName)}`);
   };
 
   const handleSearch = (query: string) => {
@@ -128,10 +148,10 @@ export default function HomePage() {
       {/* A. Top Navigation */}
       <Navbar />
 
-      {/* Main Content Sections */}
+      {/* Main Content Sections - Hero starts right at top under transparent navbar */}
       <main className="flex-1">
         {/* B. Hero Section */}
-        <HeroSection stats={HERO_STATS} />
+        <HeroSection stats={heroStats} />
 
         {/* C. Benefits Strip */}
         <BenefitsStrip items={BENEFITS_ITEMS} />
@@ -146,7 +166,6 @@ export default function HomePage() {
         <FeaturedProducts
           products={displayedProducts.length > 0 ? displayedProducts : MOCK_FEATURED_PRODUCTS}
           onAddToCart={handleAddToCart}
-          onToggleFavorite={handleToggleFavorite}
           onViewAllClick={() => {
             setSelectedCategory(null);
             showToast("Showing all popular picks");

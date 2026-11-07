@@ -201,15 +201,6 @@ export function ProductsPageClient() {
     addToCart(product, 1);
   };
 
-  // Wishlist handler
-  const handleToggleFavorite = (product: Product, isFav: boolean) => {
-    showToast(
-      isFav
-        ? `Added "${product.productName}" to wishlist`
-        : `Removed "${product.productName}" from wishlist`
-    );
-  };
-
   // Active filter count
   const activeFilterCount =
     (selectedCategory !== "all" ? 1 : 0) +
@@ -277,7 +268,6 @@ export function ProductsPageClient() {
               products={displayedProducts}
               viewMode={viewMode}
               onAddToCart={handleAddToCart}
-              onToggleFavorite={handleToggleFavorite}
               onResetFilters={handleResetFilters}
             />
 

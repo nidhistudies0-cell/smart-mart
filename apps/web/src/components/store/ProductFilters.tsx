@@ -72,7 +72,7 @@ export function ProductFilters({
               const isSelected =
                 cat.id === "all"
                   ? selectedCategory === "all"
-                  : selectedCategory === cat.name;
+                  : selectedCategory.toLowerCase() === cat.name.toLowerCase();
 
               return (
                 <button

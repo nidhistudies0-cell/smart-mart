@@ -12,7 +12,8 @@ SmartMart is a production-grade, full-stack grocery e-commerce and retail invent
 5. [DBMS Concepts Demonstrated](#dbms-concepts-demonstrated)
 6. [Monorepo Architecture & Key Files](#monorepo-architecture--key-files)
 7. [API & Data Flow](#api--data-flow)
-8. [Setup & Running Locally](#setup--running-locally)
+8. [Docker Development](#docker-development)
+9. [Setup & Running Locally](#setup--running-locally)
 
 ---
 
@@ -221,6 +222,62 @@ smart-mart/
                  ├── Relational Constraints
                  └── Indexed Lookups
 ```
+
+---
+
+## Docker Development
+
+This Docker Compose setup runs the Next.js web app and Express API in containers. It uses the existing PostgreSQL connection from `.env`; it does not start a local database container.
+
+### 1. Install Docker Desktop on macOS
+
+1. Download Docker Desktop from [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/).
+2. Choose the Apple silicon or Intel download that matches your Mac (check **Apple menu → About This Mac**).
+3. Open the downloaded installer, move Docker to Applications if prompted, then launch Docker Desktop.
+4. Wait until Docker Desktop reports that the engine is running.
+5. In Terminal, verify the installation:
+
+   ```bash
+   docker --version
+   docker compose version
+   docker run --rm hello-world
+   ```
+
+### 2. Configure the app
+
+From the project root, keep your existing `.env` if you already have one. Only create it from the example if it does not exist:
+
+```bash
+cp .env.example .env
+```
+
+Set a real PostgreSQL `DATABASE_URL` and a `BETTER_AUTH_SECRET` with at least 32 characters. The API also requires non-empty `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`; use valid credentials if you want Google sign-in. Keep `.env` private; it is excluded from the Docker build and should not be committed. Set `BETTER_AUTH_URL` to `http://localhost:5001` and `WEB_ORIGIN` to `http://localhost:3000`.
+
+### 3. Start the containers
+
+```bash
+docker compose up --build
+```
+
+The web app is at [http://localhost:3000](http://localhost:3000), and the API is at [http://localhost:5001](http://localhost:5001). The web container proxies API requests to the API container over Docker's internal network. Source changes are mounted into both containers for development.
+
+If the database schema has not been created yet, run this once from another Terminal window:
+
+```bash
+docker compose run --rm api npm run db:push
+```
+
+The API health endpoint is [http://localhost:5001/api/health](http://localhost:5001/api/health); it reports whether the API can reach PostgreSQL.
+
+### 4. Stop or inspect the app
+
+In the terminal running Compose, press **Ctrl+C**. To stop the containers from another terminal:
+
+```bash
+docker compose down
+```
+
+Use `docker compose logs -f` to inspect logs. Re-run `docker compose up --build` after changing dependencies or Docker configuration. To continue using the app without Docker, follow [Setup & Running Locally](#setup--running-locally).
 
 ---
 
